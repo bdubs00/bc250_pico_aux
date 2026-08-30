@@ -1,50 +1,41 @@
 # bc250 pico aux
 
-Auxiliary power controller for the AMD ASRock BC-250 using a Raspberry Pi
-Pico 2 and a standard ATX PSU. The Pico remains powered from `+5VSB`, controls
-ATX `PS_ON#`, pulses the BC-250 power-button input, and watches the BC-250's
-running-state signal.
+This project is an auxiliary power controller for the AMD ASRock BC-250. It uses a Raspberry Pi Pico 2 and a standard ATX power supply (PSU). The Pico stays powered from `+5VSB`. It controls the ATX `PS_ON#` line. It pulses the BC-250 power-button input. It watches the running-state signal from the BC-250.
 
-The power sequence is adapted from
-[GreatApo/BC250_ESP32_ATX_PSU](https://github.com/GreatApo/BC250_ESP32_ATX_PSU).
+This project adapts the power sequence from [GreatApo/BC250_ESP32_ATX_PSU](https://github.com/GreatApo/BC250_ESP32_ATX_PSU).
 
 > [!WARNING]
-> Incorrect ATX or BC-250 wiring can damage the Pico, motherboard, or PSU.
-> Disconnect mains and USB before changing wiring, verify connector orientation
-> and diode polarity, and check every connection with a multimeter. The Pico
-> is live whenever the PSU is plugged in because it is powered by `+5VSB`.
+> Disconnect mains and USB before you change the wiring.
+> The Pico is live whenever the PSU is plugged in, because `+5VSB` powers the Pico.
+> Incorrect ATX or BC-250 wiring can damage the Pico, the motherboard, or the PSU.
+> Make sure that the connector orientation is correct.
+> Make sure that the diode polarity is correct.
+> Make sure that every connection is correct with a multimeter.
 
 ## How it works
 
-The physical case button is connected only to the Pico. A PC817 optocoupler
-lets GP18 simulate a separate BC-250 power-button press while keeping that
-signal isolated from the GPIO. The case button is not electrically tied to the
-BC-250 button signal.
+The physical case button connects only to the Pico. A PC817 optocoupler isolates the BC-250 button signal from the GPIO. GP18 drives the optocoupler to simulate a separate BC-250 power-button press. The case button has no electrical connection to the BC-250 button signal.
 
 Power on:
 
-1. Release a short case-button press.
-2. Pull ATX `PS_ON#` low to start the PSU.
-3. Wait 1 second for the main rails to settle.
-4. Pulse the BC-250 `PW` signal low for 500 ms.
-5. Wait up to 15 seconds for TPMS1 pin 9 to report that the board is on.
-6. Cut power again if startup is not confirmed.
+1. A short press of the case button starts the sequence.
+2. The firmware pulls ATX `PS_ON#` low to start the PSU.
+3. It waits 1 second for the main rails to settle.
+4. It pulses the BC-250 `PW` signal low for 500 ms.
+5. It waits up to 15 seconds for TPMS1 pin 9 to show that the board is on.
+6. If the board does not report startup, it turns the PSU off again.
 
 Normal shutdown:
 
-1. Release a short case-button press while running.
-2. Pulse the BC-250 `PW` signal low for 500 ms, generating its normal ACPI
-   power-button event.
-3. Keep the PSU on while Linux shuts down.
-4. Release `PS_ON#` after TPMS1 pin 9 remains low for 4 seconds.
+1. A short press of the case button starts the shutdown, while the board is on.
+2. The firmware pulses the BC-250 `PW` signal low for 500 ms.
+3. The board gets its normal ACPI power-button event.
+4. The firmware keeps the PSU on while Linux shuts down.
+5. The firmware releases `PS_ON#` after TPMS1 pin 9 stays low for 4 seconds.
 
-Holding the case button for at least 5 seconds releases `PS_ON#` immediately.
-This is a hard power cut and can cause data loss. An OS-initiated shutdown is
-also followed automatically when TPMS1 pin 9 goes low.
+If you hold the case button for at least 5 seconds, the firmware releases `PS_ON#` immediately.  When TPMS1 pin 9 goes low after an OS-initiated shutdown, the firmware also releases `PS_ON#`.
 
-If the sense wire is omitted and `SENSE_PIN = None`, startup is assumed after
-the power sequence. The next short press releases `PS_ON#` immediately instead
-of attempting a graceful shutdown.
+If you omit the sense wire and set `SENSE_PIN = None`, the firmware assumes that startup succeeded after the power sequence. The next short press releases `PS_ON#` immediately. The firmware does not run a graceful shutdown.
 
 ## Bill of materials
 
@@ -54,38 +45,27 @@ of attempting a graceful shutdown.
 | 1 | Momentary push button (NO) | Case power button |
 | 1 | PC817 optocoupler | Isolated BC-250 `PW` switch |
 | 1 | 470 Ohm resistor | GP18-to-PC817 LED current limiting |
-| 1 | Series diode: 1N5817/SS14 Schottky, or any silicon rectifier such as 1N400x/1N4148 | `+5VSB`-to-VSYS feed; lets USB and standby power coexist |
+| 1 | Series diode: 1N5817/SS14 Schottky, or a silicon rectifier, for example 1N400x/1N4148 | Feed from `+5VSB` to VSYS. Lets USB and standby power coexist. |
 | 1 | Suitable TPMS1 connector | TPMS1 is a 2.0 mm-pitch header, not standard 2.54 mm Dupont pitch |
-| optional | 8.2 kOhm resistor | External GP15 pull-down, only for original A2-stepping RP2350 erratum E9; see below |
-| as needed | Insulated hookup wire and connectors | Add strain relief; do not insert loose bare wires into the ATX connector |
+| optional | 8.2 kOhm resistor | External GP15 pull-down. For the original A2-stepping RP2350 erratum E9 only. See the Wiring section. |
+| as needed | Insulated hookup wire and connectors | Add strain relief. Do not put loose bare wires into the ATX connector. |
 
-No transistor is needed for `PS_ON#`; GP17 sinks it directly as described under
-Wiring. Do not omit the PC817 LED resistor. At 3.3 V, 470 Ohm supplies
-approximately 4.5 mA to the optocoupler LED. Because PC817 current-transfer
-ratio varies by manufacturer and grade, verify the assembled output voltage as
-described in the installation steps.
+No transistor is needed for `PS_ON#`. GP17 sinks it directly, as described in the Wiring section. Do not omit the PC817 LED resistor. At 3.3 V, the 470 Ohm resistor supplies approximately 4.5 mA to the optocoupler LED. The PC817 current-transfer ratio varies by manufacturer and grade. Make sure that the assembled output voltage is correct. The Installation and test section gives the method.
 
 ## Wiring
 
-The Pico GPIO numbers below are logical GP numbers; the values in parentheses
-are physical header pins.
+The GPIO numbers in this table are logical GP numbers. The values in parentheses are physical header pins.
 
 | Function | Pico 2 connection | Other connection |
 | -------- | ----------------- | ---------------- |
 | Case button | GP16 (pin 21), internal pull-up | Normally-open button from GP16 to GND only |
 | PSU drive | GP17 (pin 22), direct wire | ATX motherboard-side 24-pin connector pin 16, green `PS_ON#` |
 | BC-250 button drive | GP18 (pin 24) through 470 Ohm | PC817 LED anode, pin 1 |
-| Running sense | GP15 (pin 20) | TPMS1 pin 9, nominally 3.3 V while running |
+| Running sense | GP15 (pin 20) | TPMS1 pin 9, nominally 3.3 V while the board is on |
 | Standby power | VSYS (pin 39) | ATX pin 9/purple `+5VSB` through the Schottky diode, anode toward the PSU |
-| Common ground | Any Pico GND, such as pin 38 | ATX black ground and TPMS1 pin 17 |
+| Common ground | Any Pico GND pin, for example pin 38 | ATX black ground and TPMS1 pin 17 |
 
-GP17 sinks `PS_ON#` directly. The firmware configures it as an open-drain
-output: driven low, the PSU turns on; released to high-impedance, the PSU's
-internal pull-up returns the line to standby. The ATX specification only
-requires sinking about 1.6 mA below 0.8 V, and the line idles at no more than
-5.25 V, which the RP2350's 5 V-tolerant digital pads (GP0-GP25) accept as long
-as the chip is powered. The `+5VSB` diode feed guarantees that condition:
-whenever mains is present and `PS_ON#` is live, the Pico is powered.
+GP17 sinks `PS_ON#` directly. The firmware configures it as an open-drain output. When GP17 drives the line low, the PSU turns on. When GP17 releases the line to high-impedance, the internal pull-up of the PSU returns it to standby. The ATX specification requires about 1.6 mA of sink current below 0.8 V. The line idles at no more than 5.25 V. The 5 V tolerant digital pads (GP0-GP25) of the RP2350 accept this voltage, as long as the chip is powered. The `+5VSB` diode feed makes sure that the Pico is powered whenever mains is present and `PS_ON#` is live.
 
 The PC817 controls the BC-250 power-button input:
 
@@ -96,70 +76,44 @@ The PC817 controls the BC-250 power-button input:
 | 3, phototransistor emitter | TPMS1 pin 17/BC-250 ground |
 | 4, phototransistor collector | BC-250 `PW` power-button solder point |
 
+Both boards share a common ground, but the design keeps the PC817. Its output is a dry, level-agnostic contact on the unbuffered `PW` solder point of the BC-250. No Pico fault or firmware bug can put a foreign voltage on that net. The dry contact removes the need to characterize the pad pull-up. The PC817 is the only active component besides the Pico.
 
-The PC817 is deliberately kept even though both boards share a common ground:
-its output is a dry, level-agnostic contact on the BC-250's unbuffered `PW`
-solder point, so no Pico fault or firmware bug can present a foreign voltage
-to that net, and the pad's pull-up strength never has to be characterized. It
-is the only active component besides the Pico itself.
-
-Early RP2350 A2 silicon has erratum E9: a high-impedance input can remain at an
-intermediate voltage that overpowers the internal pull-down. The A4 stepping
-(shipping in Pico 2 boards from roughly mid-2025 onward) fixes E9, so most
-boards need nothing here. If the Pico 2 uses A2 silicon and TPMS1 pin 9 floats
-when off, add 8.2 kOhm or less from GP15 to GND. Before relying on that
-workaround, verify TPMS1 pin 9 still reads above 2.0 V while running; otherwise
-use a buffered sense circuit or A4 silicon.
+Early RP2350 A2 silicon has erratum E9. A high-impedance input can remain at an intermediate voltage that overpowers the internal pull-down. The A4 stepping (shipping in Pico 2 boards from roughly mid-2025 onward) fixes E9. As a result, most boards need no change here. If the Pico 2 has A2 silicon and TPMS1 pin 9 floats when off, add a pull-down on GP15. Use 8.2 kOhm or less. Before you use that workaround, make sure that TPMS1 pin 9 still reads above 2.0 V while the board is on. If the voltage is less than 2.0 V, use a buffered sense circuit or A4 silicon.
 
 ### Connection diagram
 
 ```text
-                                 Raspberry Pi Pico 2
+                                  Raspberry Pi Pico 2
 
- Case button       GND ----------o/ o---------- GP16 (21)
+  Case button       GND ----------o/ o---------- GP16 (21)
 
- PSU control       GP17 (22) ------------ ATX PS_ON# pin 16
-                   (open-drain: low = PSU on, released = off)
+  PSU control       GP17 (22) ------------ ATX PS_ON# pin 16
+                    (open-drain: low = PSU on, released = off)
 
- BC-250 control    GP18 (24) --[470]-- PC817 pin 1 (LED anode)
-                   GND (38) ------------ PC817 pin 2 (LED cathode)
-                   BC-250 PW ----------- PC817 pin 4 (collector)
-                   TPMS1 pin 17 / GND -- PC817 pin 3 (emitter)
+  BC-250 control    GP18 (24) --[470]-- PC817 pin 1 (LED anode)
+                    GND (38) ------------ PC817 pin 2 (LED cathode)
+                    BC-250 PW ----------- PC817 pin 4 (collector)
+                    TPMS1 pin 17 / GND -- PC817 pin 3 (emitter)
 
- State sense       TPMS1 pin 9 ---------- GP15 (20)
+  State sense       TPMS1 pin 9 ---------- GP15 (20)
 
- Standby power     ATX pin 9 +5VSB --[>|- diode]-- VSYS (39)
-                   ATX black GND -------- GND (38)
+  Standby power     ATX pin 9 +5VSB --[>|- diode]-- VSYS (39)
+                    ATX black GND -------- GND (38)
 ```
 
-The series Schottky diode lets USB and `+5VSB` be connected at the same time:
-whichever supply is higher feeds VSYS, and the diode stops USB from
-back-feeding the PSU's unpowered standby rail. Its drop leaves VSYS around
-4.8 V, well inside the 1.8-5.5 V range, and this is the Pico datasheet's
-recommended way to combine an external 5 V source with USB. A suitably rated
-ordinary silicon diode also works; its larger drop still leaves VSYS within
-range. Do not connect `+5VSB` to VSYS without the diode.
+The series Schottky diode lets you connect USB and `+5VSB` at the same time. The higher supply feeds VSYS. The diode stops USB from feeding back into the unpowered standby rail of the PSU. The diode drop leaves VSYS around 4.8 V. That value is well inside the 1.8-5.5 V range. The Pico datasheet recommends this way to combine an external 5 V source with USB. An ordinary silicon diode with the right rating also works. Its larger drop still leaves VSYS within range. Do not connect `+5VSB` to VSYS without the diode.
 
-VSYS powers the Pico's onboard 3.3 V regulator; do not connect `+5VSB` to
-`3V3(OUT)` or a GPIO.
+VSYS powers the onboard 3.3 V regulator of the Pico. Do not connect `+5VSB` to `3V3(OUT)` or a GPIO.
 
-ATX pin numbers refer to the motherboard-side 24-pin connector. Modular PSU-side
-connectors are not standardized and must never be wired from this pin numbering.
-Verify pin position and wire function for the specific PSU rather than relying
-only on wire color.
-
+ATX pin numbers refer to the motherboard-side 24-pin connector. Never wire modular PSU-side connectors from this pin numbering. Make sure that the pin position and wire function are correct for your PSU. Do not rely on wire color only.
 
 ## Startup mode
-
 
 ```python
 PULSE_PWR_ON_START = True
 ```
 
-Use this when the BC-250 waits for its `PW` input after the PSU starts. Configure
-`AUTO_PWRON1` so the board does not independently auto-start. If TPMS1 pin 9
-already rises during the 1-second settle delay, the firmware treats the board
-as running and skips the pulse to avoid immediately turning it off again.
+When the BC-250 waits for its `PW` input after the PSU starts, use this setting. Configure `AUTO_PWRON1` so the board does not independently auto-start. If TPMS1 pin 9 already rises during the 1-second settle delay, the firmware treats the board as on. The firmware skips the pulse to prevent an immediate turn-off.
 
 Alternatively:
 
@@ -167,12 +121,11 @@ Alternatively:
 PULSE_PWR_ON_START = False
 ```
 
-Use this when `AUTO_PWRON1` is configured to start the BC-250 as soon as the PSU
-rails appear. The GP18 circuit is still used to request normal shutdown.
+When `AUTO_PWRON1` starts the BC-250 as soon as the PSU rails appear, use this setting. The GP18 circuit still requests a normal shutdown.
 
-## Pin and timing configuration
+## Pin and timing settings
 
-The defaults in `src/config.py` are:
+The default settings in `src/config.py` are:
 
 | Setting | Default | Purpose |
 | ------- | ------: | ------- |
@@ -188,36 +141,19 @@ The defaults in `src/config.py` are:
 | `SHUTDOWN_TIMEOUT_MS` | 120000 ms | Maximum graceful-shutdown wait |
 | `LONG_PRESS_MS` | 5000 ms | Forced-cut hold time |
 
-On boot, the firmware requires TPMS1 pin 9 to remain high for 100 ms before it
-reasserts `PS_ON#`. This rejects a noisy startup sample, but it is not an
-uninterrupted-power guarantee: resetting, reflashing, or crashing the Pico while
-the BC-250 is running can still hard-cut the PSU. Only deploy firmware while the
-BC-250 is off.
+On boot, the firmware requires TPMS1 pin 9 to remain high for 100 ms before it reasserts `PS_ON#`. This rejects a noisy startup sample, but it is not an uninterrupted-power guarantee. Deploy firmware only while the BC-250 is off. A reset, reflash, or crash of the Pico can still hard-cut the PSU while the BC-250 is on.
 
 ## Installation and test
 
-1. Flash MicroPython for Pico 2 from
-   <https://micropython.org/download/RPI_PICO2/>.
+1. Flash MicroPython for Pico 2 from <https://micropython.org/download/RPI_PICO2/>.
 2. Install mpremote with `python -m pip install mpremote`.
-3. Connect USB and deploy using `make deploy` with the PSU and BC-250 control
-   wires disconnected. Verify GP18 defaults low and GP17 idles released
-   (high resistance from GP17 to GND, not a driven low).
-4. Use a current-limited bench supply or the protected `+5VSB` connection to
-   test the Pico-side circuit before attaching the `PS_ON#` wire or PC817
-   output.
-5. Disconnect mains and USB, connect the ATX and BC-250 control signals, then
-   check continuity, shorts, diode orientation, and idle output states.
-6. With mains connected and the BC-250 still off, hold BOOTSEL and reset the
-   Pico once; confirm the PSU stays off while the pad's default pull-down
-   loads `PS_ON#`.
-7. During the first controlled startup, monitor the PC817 collector and verify
-   it pulls `PW` below 0.4 V relative to TPMS1 pin 17 during the pulse, then
-   returns to the released voltage.
-8. Test power-on, OS shutdown, startup timeout, and the long-press emergency
-   cut while monitoring TPMS1 pin 9.
-9. Open the MicroPython REPL with `make monitor` whenever needed; the series
-   diode makes simultaneous USB and standby power safe. Deploy firmware only
-   while the BC-250 is off, because a Pico reset releases `PS_ON#`.
+3. Connect USB. Deploy with `make deploy` while the PSU and BC-250 control wires are disconnected. Make sure that GP18 defaults low. Make sure that GP17 idles released (high resistance from GP17 to GND, not a driven low).
+4. Power the Pico-side circuit with a current-limited bench supply or the protected `+5VSB` connection. Make sure that the circuit is correct before you attach the `PS_ON#` wire or the PC817 output.
+5. Disconnect mains and USB. Connect the ATX and BC-250 control signals. Make sure that each connection shows the correct continuity. Make sure that there are no shorts. Make sure that the diode orientation is correct. Make sure that the idle output states are correct.
+6. When mains is connected and the BC-250 is still off, hold BOOTSEL and reset the Pico once. Make sure that the PSU stays off, while the default pull-down of the pad loads `PS_ON#`.
+7. During the first controlled startup, monitor the PC817 collector. Make sure that it pulls `PW` below 0.4 V relative to TPMS1 pin 17 during the pulse. Make sure that it then returns to the released voltage.
+8. Run a test of power-on, OS shutdown, startup timeout, and the long-press emergency cut. Monitor TPMS1 pin 9 during the test.
+9. Open the MicroPython REPL with `make monitor` when you need it. The series diode makes USB and standby power safe at the same time. Deploy firmware only while the BC-250 is off. A Pico reset releases `PS_ON#`.
 
 ## Project layout
 
@@ -230,4 +166,4 @@ src/
 Makefile          mpremote deploy and monitor helpers
 ```
 
-AI disclosure: This software was developed with assistance from Qwen 3.8 27B.
+AI disclosure: Qwen 3.8 27B helped develop this software.
